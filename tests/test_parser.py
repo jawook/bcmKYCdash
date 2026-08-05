@@ -27,7 +27,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(results["Target"].tolist(), ["Chris", "Chris", "Caitlin"])
         self.assertTrue((results["Activity"] == "Demo poll").all())
         self.assertEqual(results["Is Correct"].sum(), 2)
-        self.assertEqual(results.loc[1, "Participant"], "Student 2")
+        self.assertEqual(results.loc[1, "Respondent"], "Student 2")
 
     def test_loads_included_activity(self):
         result_files = sorted((Path(__file__).parents[1] / "Results" / "KYC").glob("*.csv"))

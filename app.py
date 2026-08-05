@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -43,6 +44,53 @@ def apply_optional_filter(
     return frame[frame[column].isin(selected)] if selected else frame
 
 
+def percentage_bar_chart(frame: pd.DataFrame, category: str) -> None:
+    """Display a horizontal accuracy chart with percentage labels."""
+    chart = (
+        alt.Chart(frame)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "Accuracy:Q",
+                title="Accuracy",
+                axis=alt.Axis(format=".0%"),
+                scale=alt.Scale(domain=[0, 1]),
+            ),
+            y=alt.Y(f"{category}:N", title=None, sort="-x"),
+            tooltip=[
+                alt.Tooltip(f"{category}:N", title=category),
+                alt.Tooltip("Accuracy:Q", title="Accuracy", format=".1%"),
+            ],
+        )
+        .properties(height=max(300, len(frame) * 28))
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
+def top_ten_bar_chart(frame: pd.DataFrame, metric: str, percentage: bool = False) -> None:
+    """Display consistently sized respondent ranking charts."""
+    axis = alt.Axis(format=".0%") if percentage else alt.Axis(format="d")
+    tooltip = (
+        alt.Tooltip(f"{metric}:Q", title=metric, format=".1%")
+        if percentage
+        else alt.Tooltip(f"{metric}:Q", title=metric, format=",")
+    )
+    chart = (
+        alt.Chart(frame)
+        .mark_bar(size=20)
+        .encode(
+            x=alt.X(f"{metric}:Q", title=metric, axis=axis),
+            y=alt.Y("Participant:N", title=None, sort="-x"),
+            tooltip=[
+                alt.Tooltip("Participant:N", title="Participant"),
+                tooltip,
+            ],
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
 kyc_tab = st.tabs(["KYC Checks"])[0]
 
 with kyc_tab:
@@ -69,7 +117,7 @@ with kyc_tab:
             "Target", choices(results, "Target"), placeholder="All targets"
         )
         selected_respondents = st.multiselect(
-            "Respondent", choices(results, "Screen name"), placeholder="All respondents"
+            "Participant", choices(results, "Screen name"), placeholder="All participants"
         )
 
     filtered = apply_optional_filter(results, "Activity", selected_activities)
@@ -96,17 +144,30 @@ with kyc_tab:
             .assign(Accuracy=lambda frame: frame["Correct"] / frame["Responses"])
         )
 
-        st.markdown("### Accuracy by Question")
-        st.bar_chart(target_summary, x="Target", y="Accuracy", horizontal=True)
+        st.markdown("### Accuracy by Target (Person You Are Looking For)")
+        percentage_bar_chart(target_summary, "Target")
 
         respondent_summary = (
             filtered.groupby("Screen name", as_index=False)
             .agg(Responses=("Response", "size"), Correct=("Is Correct", "sum"))
             .assign(Accuracy=lambda frame: frame["Correct"] / frame["Responses"])
             .sort_values(["Accuracy", "Correct"], ascending=False)
-            .rename(columns={"Screen name": "Respondent"})
+            .rename(columns={"Screen name": "Participant"})
         )
-        st.markdown("### Respondent Results")
+
+        top_by_accuracy = respondent_summary.sort_values(
+            ["Accuracy", "Correct", "Responses"], ascending=False
+        ).head(10)
+        st.markdown("### Top Ten Participants by Accuracy %")
+        top_ten_bar_chart(top_by_accuracy, "Accuracy", percentage=True)
+
+        top_by_correct = respondent_summary.sort_values(
+            ["Correct", "Accuracy", "Responses"], ascending=False
+        ).head(10)
+        st.markdown("### Top Ten Participants by # Correct")
+        top_ten_bar_chart(top_by_correct, "Correct")
+
+        st.markdown("### Results for All Participants")
         st.dataframe(
             respondent_summary,
             column_config={
@@ -115,14 +176,3 @@ with kyc_tab:
             hide_index=True,
             use_container_width=True,
         )
-
-        with st.expander("View response details"):
-            display_columns = [
-                "Activity",
-                "Target",
-                "Response",
-                "Screen name",
-                "Correct?",
-                "Created At",
-            ]
-            st.dataframe(filtered[display_columns], hide_index=True, use_container_width=True)

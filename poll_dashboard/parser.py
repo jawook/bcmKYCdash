@@ -88,7 +88,7 @@ def _normalise_frame(frame: pd.DataFrame, activity: str) -> pd.DataFrame:
 
     registered = result["Registered participant"].fillna("").astype(str).str.strip()
     screen_name = result["Screen name"].fillna("").astype(str).str.strip()
-    result["Participant"] = registered.where(registered.ne(""), screen_name)
+    result["Respondent"] = registered.where(registered.ne(""), screen_name)
     result["Is Correct"] = (
         result["Correct?"].fillna("").astype(str).str.strip().str.casefold().eq("yes")
     )
