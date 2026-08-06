@@ -57,6 +57,22 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(cleaned.iloc[0]["Response"], "A")
         self.assertEqual(adjustments.iloc[0]["Response"], "Later answer")
 
+    def test_screen_names_are_case_sensitive(self):
+        _, results = load_poll_results(StringIO(SAMPLE))
+        upper = results.iloc[[0]].copy()
+        lower = results.iloc[[0]].copy()
+        upper["Screen name"] = "B"
+        lower["Screen name"] = "b"
+        upper["Source File"] = "activity.csv"
+        lower["Source File"] = "activity.csv"
+
+        cleaned, adjustments = retain_first_responses(
+            pd.concat([upper, lower], ignore_index=True)
+        )
+
+        self.assertEqual(len(cleaned), 2)
+        self.assertTrue(adjustments.empty)
+
 
 if __name__ == "__main__":
     unittest.main()

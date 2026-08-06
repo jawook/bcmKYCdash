@@ -140,11 +140,13 @@ with kyc_tab:
         correct = int(filtered["Is Correct"].sum())
         total = len(filtered)
         accuracy = correct / total if total else 0
+        unique_participants = filtered["Screen name"].nunique()
 
-        metric_1, metric_2, metric_3 = st.columns(3)
+        metric_1, metric_2, metric_3, metric_4 = st.columns(4)
         metric_1.metric("Responses", f"{total:,}")
         metric_2.metric("Correct", f"{correct:,}")
         metric_3.metric("Accuracy", f"{accuracy:.0%}")
+        metric_4.metric("Unique Participants", f"{unique_participants:,}")
 
         if filtered.empty:
             st.info("No responses match the current filters.")
@@ -152,7 +154,11 @@ with kyc_tab:
 
         target_summary = (
             filtered.groupby("Target", as_index=False)
-            .agg(Responses=("Response", "size"), Correct=("Is Correct", "sum"))
+            .agg(
+                Responses=("Response", "size"),
+                Correct=("Is Correct", "sum"),
+                **{"Unique Participants": ("Screen name", "nunique")},
+            )
             .assign(Accuracy=lambda frame: frame["Correct"] / frame["Responses"])
             .sort_values(["Accuracy", "Correct", "Responses"], ascending=False)
         )
