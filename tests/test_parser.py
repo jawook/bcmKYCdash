@@ -2,7 +2,9 @@ from io import StringIO
 from pathlib import Path
 import unittest
 
-from poll_dashboard.parser import load_poll_results
+import pandas as pd
+
+from poll_dashboard.parser import load_poll_results, retain_first_responses
 
 
 SAMPLE = """Demo poll
@@ -39,6 +41,21 @@ class ParserTests(unittest.TestCase):
         self.assertFalse(results.empty)
         self.assertGreaterEqual(results["Question"].nunique(), 1)
         self.assertEqual(results.iloc[0]["Target"], "Chris")
+
+    def test_retains_first_response_and_records_adjustment(self):
+        _, results = load_poll_results(StringIO(SAMPLE))
+        results["Source File"] = "activity.csv"
+        repeated = results.iloc[[0]].copy()
+        repeated["Response"] = "Later answer"
+        repeated["Created At"] = repeated["Created At"] + pd.Timedelta(minutes=5)
+        combined = pd.concat([results, repeated], ignore_index=True)
+
+        cleaned, adjustments = retain_first_responses(combined)
+
+        self.assertEqual(len(cleaned), 3)
+        self.assertEqual(len(adjustments), 1)
+        self.assertEqual(cleaned.iloc[0]["Response"], "A")
+        self.assertEqual(adjustments.iloc[0]["Response"], "Later answer")
 
 
 if __name__ == "__main__":

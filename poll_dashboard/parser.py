@@ -94,3 +94,42 @@ def _normalise_frame(frame: pd.DataFrame, activity: str) -> pd.DataFrame:
     )
     result["Created At"] = pd.to_datetime(result["Created At"], errors="coerce")
     return result
+
+
+def retain_first_responses(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Keep the earliest response per named user, question, and source file."""
+    if frame.empty:
+        return frame.copy(), frame.copy()
+
+    working = frame.copy()
+    working["_Input Order"] = range(len(working))
+    working["_Participant Key"] = (
+        working["Screen name"].fillna("").astype(str).str.strip().str.casefold()
+    )
+
+    identified = working["_Participant Key"].ne("")
+    source_column = "Source File" if "Source File" in working.columns else "Activity"
+    duplicate_keys = [source_column, "Question", "_Participant Key"]
+
+    ordered_identified = working[identified].sort_values(
+        duplicate_keys + ["Created At", "_Input Order"],
+        kind="stable",
+        na_position="last",
+    )
+    removed_mask = ordered_identified.duplicated(duplicate_keys, keep="first")
+    adjustments = ordered_identified[removed_mask].copy()
+    kept_identified = ordered_identified[~removed_mask]
+    kept = pd.concat([kept_identified, working[~identified]], ignore_index=False)
+
+    internal_columns = ["_Input Order", "_Participant Key"]
+    cleaned = (
+        kept.sort_values("_Input Order", kind="stable")
+        .drop(columns=internal_columns)
+        .reset_index(drop=True)
+    )
+    adjustments = (
+        adjustments.sort_values("_Input Order", kind="stable")
+        .drop(columns=internal_columns)
+        .reset_index(drop=True)
+    )
+    return cleaned, adjustments

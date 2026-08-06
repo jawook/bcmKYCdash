@@ -4,7 +4,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from poll_dashboard.parser import load_poll_results
+from poll_dashboard.parser import load_poll_results, retain_first_responses
 
 
 RESULTS_DIR = Path(__file__).parent / "Results"
@@ -105,6 +105,8 @@ with kyc_tab:
         st.info("No KYC activity results are available yet.")
         st.stop()
 
+    results, adjustments = retain_first_responses(results)
+
     dashboard, filter_panel = st.columns([4, 1.25], gap="large")
 
     with filter_panel:
@@ -123,6 +125,16 @@ with kyc_tab:
     filtered = apply_optional_filter(results, "Activity", selected_activities)
     filtered = apply_optional_filter(filtered, "Target", selected_targets)
     filtered = apply_optional_filter(filtered, "Screen name", selected_respondents)
+
+    filtered_adjustments = apply_optional_filter(
+        adjustments, "Activity", selected_activities
+    )
+    filtered_adjustments = apply_optional_filter(
+        filtered_adjustments, "Target", selected_targets
+    )
+    filtered_adjustments = apply_optional_filter(
+        filtered_adjustments, "Screen name", selected_respondents
+    )
 
     with dashboard:
         correct = int(filtered["Is Correct"].sum())
@@ -192,10 +204,40 @@ with kyc_tab:
                 use_container_width=True,
             )
 
+        with st.expander("Response Adjustments", expanded=False):
+            st.caption(
+                "For each activity question, only a participant's first response is "
+                "included in the dashboard. Original CSV files are unchanged."
+            )
+            if filtered_adjustments.empty:
+                st.success("No response adjustments were needed for the current filters.")
+            else:
+                adjustment_summary = (
+                    filtered_adjustments.groupby(
+                        ["Activity", "Target", "Screen name"], as_index=False
+                    )
+                    .agg(**{"Responses Removed": ("Response", "size")})
+                    .rename(columns={"Screen name": "Participant"})
+                    .sort_values(
+                        ["Responses Removed", "Activity", "Target"],
+                        ascending=[False, True, True],
+                    )
+                )
+                st.info(
+                    f"Adjusted responses for "
+                    f"{adjustment_summary['Participant'].nunique():,} participant(s)."
+                )
+                st.dataframe(
+                    adjustment_summary,
+                    hide_index=True,
+                    use_container_width=True,
+                )
+
         with st.expander("Potential Gaming", expanded=False):
             st.caption(
                 "Flags participants with more than one response to the same question "
-                "within an activity. This section follows the filters above."
+                "within an activity after first-response adjustments. This section "
+                "follows the filters above."
             )
 
             gaming_source = filtered[
