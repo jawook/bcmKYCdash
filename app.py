@@ -192,48 +192,48 @@ with kyc_tab:
                 use_container_width=True,
             )
 
-        st.markdown("### Potential Gaming")
-        st.caption(
-            "Flags participants with more than one response to the same question "
-            "within an activity. This section follows the filters above."
-        )
+        with st.expander("Potential Gaming", expanded=False):
+            st.caption(
+                "Flags participants with more than one response to the same question "
+                "within an activity. This section follows the filters above."
+            )
 
-        gaming_source = filtered[
-            filtered["Screen name"].fillna("").astype(str).str.strip().ne("")
-        ]
-        repeated_responses = (
-            gaming_source.groupby(
-                ["Activity", "Question", "Target", "Screen name"], as_index=False
+            gaming_source = filtered[
+                filtered["Screen name"].fillna("").astype(str).str.strip().ne("")
+            ]
+            repeated_responses = (
+                gaming_source.groupby(
+                    ["Activity", "Question", "Target", "Screen name"], as_index=False
+                )
+                .agg(Responses=("Response", "size"))
+                .query("Responses > 1")
+                .assign(**{"Extra Responses": lambda frame: frame["Responses"] - 1})
+                .rename(columns={"Screen name": "Participant"})
+                .sort_values(
+                    ["Extra Responses", "Responses", "Activity", "Target"],
+                    ascending=[False, False, True, True],
+                )
             )
-            .agg(Responses=("Response", "size"))
-            .query("Responses > 1")
-            .assign(**{"Extra Responses": lambda frame: frame["Responses"] - 1})
-            .rename(columns={"Screen name": "Participant"})
-            .sort_values(
-                ["Extra Responses", "Responses", "Activity", "Target"],
-                ascending=[False, False, True, True],
-            )
-        )
 
-        if repeated_responses.empty:
-            st.success("No repeated responses detected for the current filters.")
-        else:
-            affected = repeated_responses["Participant"].nunique()
-            extra = int(repeated_responses["Extra Responses"].sum())
-            st.warning(
-                f"Detected {extra:,} extra response(s) across "
-                f"{affected:,} participant(s)."
-            )
-            st.dataframe(
-                repeated_responses[
-                    [
-                        "Activity",
-                        "Target",
-                        "Participant",
-                        "Responses",
-                        "Extra Responses",
-                    ]
-                ],
-                hide_index=True,
-                use_container_width=True,
-            )
+            if repeated_responses.empty:
+                st.success("No repeated responses detected for the current filters.")
+            else:
+                affected = repeated_responses["Participant"].nunique()
+                extra = int(repeated_responses["Extra Responses"].sum())
+                st.warning(
+                    f"Detected {extra:,} extra response(s) across "
+                    f"{affected:,} participant(s)."
+                )
+                st.dataframe(
+                    repeated_responses[
+                        [
+                            "Activity",
+                            "Target",
+                            "Participant",
+                            "Responses",
+                            "Extra Responses",
+                        ]
+                    ],
+                    hide_index=True,
+                    use_container_width=True,
+                )
