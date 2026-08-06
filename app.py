@@ -142,10 +142,23 @@ with kyc_tab:
             filtered.groupby("Target", as_index=False)
             .agg(Responses=("Response", "size"), Correct=("Is Correct", "sum"))
             .assign(Accuracy=lambda frame: frame["Correct"] / frame["Responses"])
+            .sort_values(["Accuracy", "Correct", "Responses"], ascending=False)
         )
 
-        st.markdown("### Accuracy by Target (Person You Are Looking For)")
-        percentage_bar_chart(target_summary, "Target")
+        st.markdown("### Top Ten Targets by Accuracy %")
+        percentage_bar_chart(target_summary.head(10), "Target")
+
+        with st.expander("Results for All Targets", expanded=False):
+            st.dataframe(
+                target_summary,
+                column_config={
+                    "Accuracy": st.column_config.ProgressColumn(
+                        format="percent", min_value=0, max_value=1
+                    )
+                },
+                hide_index=True,
+                use_container_width=True,
+            )
 
         respondent_summary = (
             filtered.groupby("Screen name", as_index=False)
@@ -167,12 +180,14 @@ with kyc_tab:
         st.markdown("### Top Ten Participants by # Correct")
         top_ten_bar_chart(top_by_correct, "Correct")
 
-        st.markdown("### Results for All Participants")
-        st.dataframe(
-            respondent_summary,
-            column_config={
-                "Accuracy": st.column_config.ProgressColumn(format="percent", min_value=0, max_value=1)
-            },
-            hide_index=True,
-            use_container_width=True,
-        )
+        with st.expander("Results for All Participants", expanded=False):
+            st.dataframe(
+                respondent_summary,
+                column_config={
+                    "Accuracy": st.column_config.ProgressColumn(
+                        format="percent", min_value=0, max_value=1
+                    )
+                },
+                hide_index=True,
+                use_container_width=True,
+            )
