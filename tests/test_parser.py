@@ -103,6 +103,15 @@ KYC Check 06,Collage 14 - Panel 1,Collage 14 - Panel 1,Panel 1,student1,Yes,2026
         self.assertEqual(title, "KYC Check 06")
         self.assertEqual(results.iloc[0]["Target"], "Collage 14 - Panel 1")
 
+    def test_all_public_results_load_without_secrets(self):
+        result_files = sorted((Path(__file__).parents[1] / "Results" / "KYC").glob("*.csv"))
+
+        self.assertTrue(result_files)
+        for result_file in result_files:
+            with self.subTest(result_file=result_file.name):
+                _, results = load_poll_results(result_file)
+                self.assertFalse(results.empty)
+
 
 if __name__ == "__main__":
     unittest.main()

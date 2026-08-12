@@ -11,31 +11,25 @@ RESULTS_DIR = Path(__file__).parent / "Results"
 KYC_RESULTS_DIR = RESULTS_DIR / "KYC"
 
 
-def panel_answer_key_secret() -> str:
-    try:
-        return str(st.secrets["kyc_panel_answer_key"])
-    except (KeyError, FileNotFoundError):
-        return ""
-
 st.set_page_config(page_title="Class Poll Dashboard", page_icon=":bar_chart:", layout="wide")
 st.title("Class Poll Dashboard")
 st.caption("View results from classroom activities.")
 
 
 @st.cache_data
-def load_activity_folder(
-    folder: Path, panel_answer_key_text: str
-) -> tuple[pd.DataFrame, list[str]]:
+def load_activity_folder(folder: Path) -> tuple[pd.DataFrame, list[str]]:
     """Load every CSV in one activity-type folder."""
     frames: list[pd.DataFrame] = []
     errors: list[str] = []
     for path in sorted(folder.glob("*.csv")):
         try:
-            _, frame = load_poll_results(path, panel_answer_key_text)
+            # Public result files are already sanitized offline. Secrets and raw
+            # name-bearing exports must never be required by the deployed app.
+            _, frame = load_poll_results(path)
             frame["Source File"] = path.name
             frames.append(frame)
-        except (OSError, UnicodeError, ValueError) as exc:
-            errors.append(f"{path.name}: {exc}")
+        except (OSError, UnicodeError, ValueError, TypeError) as exc:
+            errors.append(f"{path.name}: {type(exc).__name__}")
 
     if not frames:
         return pd.DataFrame(), errors
@@ -103,9 +97,7 @@ def top_ten_bar_chart(frame: pd.DataFrame, metric: str, percentage: bool = False
 kyc_tab = st.tabs(["KYC Checks"])[0]
 
 with kyc_tab:
-    results, load_errors = load_activity_folder(
-        KYC_RESULTS_DIR, panel_answer_key_secret()
-    )
+    results, load_errors = load_activity_folder(KYC_RESULTS_DIR)
 
     if load_errors:
         with st.expander("Some activity files could not be loaded"):
