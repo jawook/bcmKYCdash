@@ -49,6 +49,14 @@ def parse_panel_answer_key(text: str) -> dict[tuple[int, str], int]:
     return answers
 
 
+def public_given_name(full_name: str) -> str:
+    """Return a public-safe preferred or given name from a private full name."""
+    preferred_name = re.search(r"\(([^)]+)\)", full_name)
+    if preferred_name:
+        return preferred_name.group(1).strip()
+    return full_name.strip().split()[0]
+
+
 def _apply_panel_metadata(
     frame: pd.DataFrame, answer_key: dict[tuple[int, str], int]
 ) -> pd.DataFrame:
@@ -65,7 +73,7 @@ def _apply_panel_metadata(
             raise ValueError(
                 f"the private answer key has no entry for collage {collage:02d}"
             )
-        safe_label = f"Collage {collage:02d} - Panel {panel}"
+        safe_label = public_given_name(name)
         result.at[index, "Question"] = safe_label
         result.at[index, "Target"] = safe_label
         result.at[index, "Expected Panel"] = panel

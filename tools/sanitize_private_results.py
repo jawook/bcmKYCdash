@@ -1,12 +1,15 @@
 """Create public-safe KYC CSVs from ignored raw panel-number exports."""
 
 from pathlib import Path
-import re
 
 import pandas as pd
 import tomllib
 
-from poll_dashboard.parser import load_poll_results, parse_panel_answer_key
+from poll_dashboard.parser import (
+    load_poll_results,
+    parse_panel_answer_key,
+    public_given_name,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -39,12 +42,7 @@ def main() -> None:
         screen_names = frame["Screen name"].fillna("").astype(str).str.strip()
         for index, screen_name in screen_names.items():
             if screen_name in private_names:
-                preferred_name = re.search(r"\(([^)]+)\)", screen_name)
-                frame.at[index, "Screen name"] = (
-                    preferred_name.group(1)
-                    if preferred_name
-                    else screen_name.split()[0]
-                )
+                frame.at[index, "Screen name"] = public_given_name(screen_name)
         missing = [column for column in PUBLIC_COLUMNS if column not in frame.columns]
         if missing:
             raise ValueError(f"{source.name} is missing public columns: {missing}")

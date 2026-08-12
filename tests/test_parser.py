@@ -84,8 +84,8 @@ class ParserTests(unittest.TestCase):
     def test_panel_questions_use_private_key_and_safe_target(self):
         _, results = load_poll_results(StringIO(PANEL_SAMPLE), PANEL_KEY)
 
-        self.assertEqual(results.iloc[0]["Target"], "Collage 14 - Panel 2")
-        self.assertEqual(results.iloc[0]["Question"], "Collage 14 - Panel 2")
+        self.assertEqual(results.iloc[0]["Target"], "Example")
+        self.assertEqual(results.iloc[0]["Question"], "Example")
         self.assertFalse(results.iloc[0]["Is Correct"])
         self.assertNotIn("Example Person", results.to_string())
 
