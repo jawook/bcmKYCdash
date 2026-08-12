@@ -129,6 +129,9 @@ celerybeat.pid
 
 # Environments
 .env
+.streamlit/secrets.toml
+Results/KYC-private/
+.history-backup/
 .venv
 env/
 venv/

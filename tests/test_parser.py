@@ -18,6 +18,14 @@ Response,Screen name,Registered participant,Correct?,Created At
 C,guest1,,Yes,2026-08-05 09:02:00
 """
 
+PANEL_SAMPLE = """KYC Check 07
+Select the panel number that contains Example Person.<em> Collage 14</em>
+Response,Via,Screen name,Registered participant,Correct?,Created At
+4,Survey,student1,,No,2026-08-05 09:00:00
+"""
+
+PANEL_KEY = "Collage 14: 1. Alpha Example | 2. Example Person | 3. Gamma Example"
+
 
 class ParserTests(unittest.TestCase):
     def test_loads_block_export(self):
@@ -72,6 +80,28 @@ class ParserTests(unittest.TestCase):
 
         self.assertEqual(len(cleaned), 2)
         self.assertTrue(adjustments.empty)
+
+    def test_panel_questions_use_private_key_and_safe_target(self):
+        _, results = load_poll_results(StringIO(PANEL_SAMPLE), PANEL_KEY)
+
+        self.assertEqual(results.iloc[0]["Target"], "Collage 14 - Panel 2")
+        self.assertEqual(results.iloc[0]["Question"], "Collage 14 - Panel 2")
+        self.assertFalse(results.iloc[0]["Is Correct"])
+        self.assertNotIn("Example Person", results.to_string())
+
+    def test_panel_questions_require_private_key(self):
+        with self.assertRaisesRegex(ValueError, "private answer key"):
+            load_poll_results(StringIO(PANEL_SAMPLE))
+
+    def test_sanitized_panel_csv_preserves_safe_metadata(self):
+        safe_csv = """Activity,Question,Target,Response,Screen name,Correct?,Created At
+KYC Check 06,Collage 14 - Panel 1,Collage 14 - Panel 1,Panel 1,student1,Yes,2026-08-05 09:00:00
+"""
+
+        title, results = load_poll_results(StringIO(safe_csv))
+
+        self.assertEqual(title, "KYC Check 06")
+        self.assertEqual(results.iloc[0]["Target"], "Collage 14 - Panel 1")
 
 
 if __name__ == "__main__":

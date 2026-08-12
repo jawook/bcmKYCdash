@@ -10,6 +10,13 @@ import pandas as pd
 
 
 EXPECTED_HEADER = "Response"
+PANEL_QUESTION_PATTERN = re.compile(
+    r"Select\s+the\s+panel\s+number\s+that\s+contains\s+(.+?)\.\s*"
+    r"<em>\s*Collage\s+(\d+)\s*</em>",
+    re.IGNORECASE,
+)
+ANSWER_KEY_LINE_PATTERN = re.compile(r"^Collage\s+(\d+)\s*:\s*(.+)$", re.IGNORECASE)
+ANSWER_KEY_ENTRY_PATTERN = re.compile(r"(?:^|\|)\s*(\d+)\.\s*(.+?)\s*(?=\||$)")
 
 
 def _read_text(source: str | Path | BinaryIO | TextIO) -> str:
@@ -27,7 +34,51 @@ def _clean_rows(text: str) -> list[list[str]]:
     return [[cell.strip() for cell in row] for row in rows]
 
 
-def load_poll_results(source: str | Path | BinaryIO | TextIO) -> tuple[str, pd.DataFrame]:
+def parse_panel_answer_key(text: str) -> dict[tuple[int, str], int]:
+    """Parse private collage/name mappings into panel numbers."""
+    answers: dict[tuple[int, str], int] = {}
+    for raw_line in text.splitlines():
+        line_match = ANSWER_KEY_LINE_PATTERN.match(raw_line.strip())
+        if not line_match:
+            continue
+        collage = int(line_match.group(1))
+        for entry_match in ANSWER_KEY_ENTRY_PATTERN.finditer(line_match.group(2)):
+            panel = int(entry_match.group(1))
+            name = entry_match.group(2).strip()
+            answers[(collage, name)] = panel
+    return answers
+
+
+def _apply_panel_metadata(
+    frame: pd.DataFrame, answer_key: dict[tuple[int, str], int]
+) -> pd.DataFrame:
+    """Replace private panel-question names with safe public labels."""
+    result = frame.copy()
+    for index, question in result["Question"].items():
+        match = PANEL_QUESTION_PATTERN.search(str(question))
+        if not match:
+            continue
+        name = match.group(1).strip()
+        collage = int(match.group(2))
+        panel = answer_key.get((collage, name))
+        if panel is None:
+            raise ValueError(
+                f"the private answer key has no entry for collage {collage:02d}"
+            )
+        safe_label = f"Collage {collage:02d} - Panel {panel}"
+        result.at[index, "Question"] = safe_label
+        result.at[index, "Target"] = safe_label
+        result.at[index, "Expected Panel"] = panel
+        response_match = re.search(r"\d+", str(result.at[index, "Response"]))
+        if response_match:
+            result.at[index, "Is Correct"] = int(response_match.group()) == panel
+    return result
+
+
+def load_poll_results(
+    source: str | Path | BinaryIO | TextIO,
+    panel_answer_key_text: str = "",
+) -> tuple[str, pd.DataFrame]:
     """Parse a block-style poll export or a conventional CSV table."""
     text = _read_text(source)
     rows = _clean_rows(text)
@@ -38,7 +89,11 @@ def load_poll_results(source: str | Path | BinaryIO | TextIO) -> tuple[str, pd.D
     header_indexes = [i for i, row in enumerate(rows) if row and row[0] == EXPECTED_HEADER]
     if not header_indexes:
         frame = pd.read_csv(io.StringIO(text))
-        title = "Poll results"
+        title = (
+            str(frame["Activity"].dropna().iloc[0])
+            if "Activity" in frame.columns and not frame["Activity"].dropna().empty
+            else "Poll results"
+        )
         return title, _normalise_frame(frame, title)
 
     title = next((row[0] for row in rows[: header_indexes[0]] if row and row[0]), "Poll results")
@@ -62,7 +117,17 @@ def load_poll_results(source: str | Path | BinaryIO | TextIO) -> tuple[str, pd.D
             record["Question"] = question
             records.append(record)
 
-    return title, _normalise_frame(pd.DataFrame(records), title)
+    result = _normalise_frame(pd.DataFrame(records), title)
+    has_panel_questions = result["Question"].map(
+        lambda question: bool(PANEL_QUESTION_PATTERN.search(str(question)))
+    ).any()
+    if has_panel_questions:
+        if not panel_answer_key_text.strip():
+            raise ValueError("panel-number activities require the private answer key secret")
+        result = _apply_panel_metadata(
+            result, parse_panel_answer_key(panel_answer_key_text)
+        )
+    return title, result
 
 
 def _target_from_question(question: object) -> str:
@@ -79,8 +144,12 @@ def _normalise_frame(frame: pd.DataFrame, activity: str) -> pd.DataFrame:
     if "Question" not in result.columns:
         result["Question"] = "All responses"
 
-    result["Activity"] = activity
-    result["Target"] = result["Question"].map(_target_from_question)
+    if "Activity" not in result.columns:
+        result["Activity"] = activity
+    else:
+        result["Activity"] = result["Activity"].fillna(activity)
+    if "Target" not in result.columns:
+        result["Target"] = result["Question"].map(_target_from_question)
 
     for column in ["Screen name", "Registered participant", "Correct?", "Created At"]:
         if column not in result.columns:

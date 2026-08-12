@@ -24,6 +24,22 @@ The app will open in your browser and automatically combine the available KYC ac
 
 Place each KYC activity CSV export in the `Results/KYC/` folder and commit it to the repository. It will be included automatically, with no dashboard upload step or code change. Before publishing, confirm that files contain no personal or sensitive information you do not intend to make public.
 
+Panel-number KYC exports contain full names in their question text and must **not**
+be committed as raw CSV files. Keep raw copies in the ignored
+`Results/KYC-private/` folder. The private collage answer key belongs in
+`.streamlit/secrets.toml` locally and in the Streamlit Community Cloud Secrets
+editor under `kyc_panel_answer_key`. Use `.streamlit/secrets.example.toml` as the
+structure reference; never put real names in the example file.
+
+After adding a raw panel-number export, generate its public-safe counterpart:
+
+```bash
+python tools/sanitize_private_results.py
+```
+
+Only the resulting CSV in `Results/KYC/` should be committed. It contains safe
+collage/panel labels and no target names.
+
 ```text
 Results/
 └── KYC/
